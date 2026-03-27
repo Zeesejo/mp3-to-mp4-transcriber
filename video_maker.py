@@ -1,10 +1,8 @@
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
-from moviepy.editor import AudioFileClip
 import subprocess
 import os
 import textwrap
-import sys
 
 WIDTH, HEIGHT = 1280, 720
 FPS = 15
@@ -12,7 +10,40 @@ BG_COLOR   = (15, 15, 30)
 WAVE_COLOR = (0, 200, 255)
 TEXT_COLOR = (255, 255, 255)
 SUB_BG     = (30, 30, 60)
-WAVE_RATE  = 2000  # audio samples/sec for waveform viz
+
+
+def _load_audio_array(mp3_path: str, target_rate: int = 2000):
+    """
+    Load MP3 as a mono numpy float32 array resampled to target_rate.
+    Uses ffmpeg directly to decode — no moviepy, no numpy stacking issues.
+    """
+    cmd = [
+        "ffmpeg", "-y",
+        "-i", mp3_path,
+        "-f", "f32le",          # raw 32-bit float PCM
+        "-acodec", "pcm_f32le",
+        "-ac", "1",             # mono
+        "-ar", str(target_rate),
+        "pipe:1"
+    ]
+    result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    audio = np.frombuffer(result.stdout, dtype=np.float32).copy()
+    mx = np.max(np.abs(audio))
+    if mx > 0:
+        audio /= mx
+    return audio
+
+
+def _get_audio_duration(mp3_path: str) -> float:
+    """Get duration in seconds using ffprobe."""
+    cmd = [
+        "ffprobe", "-v", "error",
+        "-show_entries", "format=duration",
+        "-of", "default=noprint_wrappers=1:nokey=1",
+        mp3_path
+    ]
+    result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    return float(result.stdout.strip())
 
 
 def _get_font(size, bold=False):
@@ -42,34 +73,26 @@ def _text_w(draw, text, font):
 
 
 def create_animated_mp4(mp3_path: str, segments: list) -> str:
-    audio_clip = AudioFileClip(mp3_path)
-    duration   = audio_clip.duration
+    WAVE_RATE = 2000
+
+    print("  Loading audio waveform...", flush=True)
+    duration   = _get_audio_duration(mp3_path)
+    audio_arr  = _load_audio_array(mp3_path, target_rate=WAVE_RATE)
     total_frames = int(duration * FPS)
+    half_win   = WAVE_RATE // 4
 
-    # Load waveform at low rate
-    audio_arr = audio_clip.to_soundarray(fps=WAVE_RATE)
-    if audio_arr.ndim > 1:
-        audio_arr = audio_arr.mean(axis=1)
-    mx = np.max(np.abs(audio_arr))
-    if mx > 0:
-        audio_arr /= mx
-    audio_clip.close()
-
-    # O(1) subtitle lookup
+    # O(1) subtitle lookup by frame index
     sub_lookup = {}
     for seg in segments:
         for b in range(int(seg["start"] * FPS), int(seg["end"] * FPS) + 1):
             sub_lookup[b] = seg["text"].strip()
 
-    # Cache fonts & background
     font_sub   = _get_font(32, bold=True)
     font_title = _get_font(22)
     bg         = Image.new("RGB", (WIDTH, HEIGHT), BG_COLOR)
-    half_win   = WAVE_RATE // 4
 
     out_path = os.path.splitext(mp3_path)[0] + "_output.mp4"
 
-    # --- ffmpeg pipe: raw RGB frames in, H264+AAC out ---
     cmd = [
         "ffmpeg", "-y",
         "-f", "rawvideo",
@@ -77,20 +100,19 @@ def create_animated_mp4(mp3_path: str, segments: list) -> str:
         "-s", f"{WIDTH}x{HEIGHT}",
         "-pix_fmt", "rgb24",
         "-r", str(FPS),
-        "-i", "pipe:0",          # video from stdin
-        "-i", mp3_path,           # audio from file
+        "-i", "pipe:0",
+        "-i", mp3_path,
         "-c:v", "libx264",
-        "-preset", "ultrafast",   # fastest encode
+        "-preset", "ultrafast",
         "-crf", "23",
         "-c:a", "aac",
         "-shortest",
         "-pix_fmt", "yuv420p",
         out_path
     ]
-
     proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.DEVNULL)
 
-    print(f"Rendering {total_frames} frames at {FPS} fps...", flush=True)
+    print(f"  Rendering {total_frames} frames ({int(duration//60):02}:{int(duration%60):02} audio)...", flush=True)
 
     for frame_idx in range(total_frames):
         t = frame_idx / FPS
@@ -98,13 +120,13 @@ def create_animated_mp4(mp3_path: str, segments: list) -> str:
         frame = bg.copy()
         draw  = ImageDraw.Draw(frame)
 
-        # Waveform
+        # --- Waveform ---
         center = int(t * WAVE_RATE)
         s = max(0, center - half_win)
         e = min(len(audio_arr), center + half_win)
         chunk = audio_arr[s:e]
         if len(chunk) > 1:
-            xs = np.linspace(0, WIDTH, len(chunk), dtype=np.float32)
+            xs    = np.linspace(0, WIDTH, len(chunk), dtype=np.float32)
             mid_y = int(HEIGHT * 0.45)
             amp   = HEIGHT * 0.25
             ys    = (mid_y + chunk * amp).astype(np.int32)
@@ -113,16 +135,15 @@ def create_animated_mp4(mp3_path: str, segments: list) -> str:
                 for k in range(len(pts) - 1):
                     draw.line([pts[k], pts[k+1]], fill=rgb, width=glow_w)
 
-        # Progress bar
+        # --- Progress bar ---
         draw.rectangle([0, HEIGHT-8, int(WIDTH * t / duration), HEIGHT], fill=WAVE_COLOR)
 
-        # Subtitle
+        # --- Subtitle ---
         subtitle = sub_lookup.get(frame_idx, "")
         if subtitle:
             wrapped = textwrap.fill(subtitle, width=58)
             lines   = wrapped.split("\n")
-            line_h  = 42
-            box_h   = len(lines) * line_h + 24
+            line_h, box_h = 42, len(wrapped.split("\n")) * 42 + 24
             box_y   = HEIGHT - 95 - box_h
             overlay = Image.new("RGBA", (WIDTH, HEIGHT), (0,0,0,0))
             od = ImageDraw.Draw(overlay)
@@ -136,7 +157,7 @@ def create_animated_mp4(mp3_path: str, segments: list) -> str:
                 draw.text((tx+2, ty+2), line, font=font_sub, fill=(0,0,0))
                 draw.text((tx,   ty),   line, font=font_sub, fill=TEXT_COLOR)
 
-        # Title & timestamp
+        # --- Title & timestamp ---
         draw.text((20, 14), "\U0001f399  Audio Transcription", font=font_title, fill=(180,180,255))
         ts = f"{int(t//60):02}:{int(t%60):02}"
         tw = _text_w(draw, ts, font_title)
@@ -144,14 +165,11 @@ def create_animated_mp4(mp3_path: str, segments: list) -> str:
 
         proc.stdin.write(frame.tobytes())
 
-        # Progress log every 5 seconds worth of frames
         if frame_idx % (FPS * 5) == 0:
             pct = frame_idx / total_frames * 100
-            elapsed_s = frame_idx / FPS
-            print(f"  {pct:.1f}%  ({int(elapsed_s//60):02}:{int(elapsed_s%60):02} / "
-                  f"{int(duration//60):02}:{int(duration%60):02})", flush=True)
+            print(f"  {pct:5.1f}%  [{int(t//60):02}:{int(t%60):02} / {int(duration//60):02}:{int(duration%60):02}]", flush=True)
 
     proc.stdin.close()
     proc.wait()
-    print(f"Done! Saved to: {out_path}", flush=True)
+    print(f"  Done! -> {out_path}", flush=True)
     return out_path
