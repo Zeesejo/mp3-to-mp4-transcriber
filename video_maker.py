@@ -1,101 +1,148 @@
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-import matplotlib.animation as animation
 from moviepy.editor import AudioFileClip, VideoClip
 from PIL import Image, ImageDraw, ImageFont
 import os
+import sys
 import textwrap
 
 WIDTH, HEIGHT = 1280, 720
 FPS = 24
-BG_COLOR = (15, 15, 30)       # Dark navy
-WAVE_COLOR = (0, 200, 255)    # Cyan
-TEXT_COLOR = (255, 255, 255)  # White
-SUB_BG = (30, 30, 60, 180)   # Semi-transparent subtitle bar
+BG_COLOR = (15, 15, 30)
+WAVE_COLOR = (0, 200, 255)
+TEXT_COLOR = (255, 255, 255)
+SUB_BG_COLOR = (30, 30, 60)
+
+
+def _get_font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont:
+    """Load a TTF font cross-platform (Windows / Linux / macOS)."""
+    # Windows system fonts
+    win_fonts = [
+        r"C:\Windows\Fonts\arialbd.ttf" if bold else r"C:\Windows\Fonts\arial.ttf",
+        r"C:\Windows\Fonts\calibrib.ttf" if bold else r"C:\Windows\Fonts\calibri.ttf",
+        r"C:\Windows\Fonts\segoeui.ttf",
+    ]
+    # Linux fonts
+    linux_fonts = [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold
+        else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    ]
+    # macOS fonts
+    mac_fonts = [
+        "/System/Library/Fonts/Helvetica.ttc",
+        "/Library/Fonts/Arial Bold.ttf" if bold else "/Library/Fonts/Arial.ttf",
+    ]
+
+    for path in win_fonts + linux_fonts + mac_fonts:
+        if os.path.exists(path):
+            try:
+                return ImageFont.truetype(path, size)
+            except Exception:
+                continue
+    return ImageFont.load_default()
 
 
 def create_animated_mp4(mp3_path: str, segments: list) -> str:
-    """Create an animated MP4 with waveform + subtitles from MP3 + Whisper segments."""
+    """Create an animated MP4 with waveform + subtitles."""
     audio_clip = AudioFileClip(mp3_path)
     duration = audio_clip.duration
 
-    # Pre-load audio samples for waveform
-    audio_array = audio_clip.to_soundarray(fps=4000)  # low-res for viz
+    # Load audio as numpy array for waveform visualization
+    audio_array = audio_clip.to_soundarray(fps=4000)
     if audio_array.ndim > 1:
-        audio_array = audio_array.mean(axis=1)  # stereo -> mono
-    audio_array = audio_array / (np.max(np.abs(audio_array)) + 1e-9)  # normalize
+        audio_array = audio_array.mean(axis=1)
+    # Normalize safely
+    max_val = np.max(np.abs(audio_array))
+    audio_array = audio_array / (max_val if max_val > 0 else 1.0)
+
+    font_sub = _get_font(32, bold=True)
+    font_title = _get_font(22, bold=False)
 
     def get_subtitle_at(t):
-        """Return the subtitle text active at time t."""
         for seg in segments:
             if seg["start"] <= t <= seg["end"]:
                 return seg["text"].strip()
         return ""
 
     def make_frame(t):
+        # Base layer — opaque RGB
         img = Image.new("RGB", (WIDTH, HEIGHT), BG_COLOR)
-        draw = ImageDraw.Draw(img, "RGBA")
+        draw = ImageDraw.Draw(img)
 
-        # --- Draw waveform ---
-        window = 0.5  # seconds of waveform visible
-        center_sample = int(t * 4000)
-        half_win = int(window * 4000 // 2)
-        start_s = max(0, center_sample - half_win)
-        end_s = min(len(audio_array), center_sample + half_win)
-        wave_chunk = audio_array[start_s:end_s]
+        # --- Waveform ---
+        window_samples = int(0.5 * 4000)
+        center = int(t * 4000)
+        s = max(0, center - window_samples // 2)
+        e = min(len(audio_array), center + window_samples // 2)
+        chunk = audio_array[s:e]
 
-        if len(wave_chunk) > 1:
-            x_vals = np.linspace(0, WIDTH, len(wave_chunk))
+        if len(chunk) > 1:
+            x_vals = np.linspace(0, WIDTH, len(chunk))
             mid_y = int(HEIGHT * 0.45)
             amp = HEIGHT * 0.25
 
-            # Glow effect: draw multiple layers
-            for glow, alpha_factor in [(6, 40), (3, 80), (1, 220)]:
-                pts = [(int(x_vals[i]), int(mid_y + wave_chunk[i] * amp))
-                       for i in range(len(wave_chunk))]
+            # Draw glow layers (semi-transparent via blending)
+            for glow_w, opacity in [(8, 0.10), (4, 0.25), (2, 0.55), (1, 1.0)]:
+                layer = Image.new("RGB", (WIDTH, HEIGHT), BG_COLOR)
+                ld = ImageDraw.Draw(layer)
+                r = int(WAVE_COLOR[0] * opacity)
+                g = int(WAVE_COLOR[1] * opacity)
+                b = int(WAVE_COLOR[2] * opacity)
+                pts = [(int(x_vals[i]), int(mid_y + chunk[i] * amp))
+                       for i in range(len(chunk))]
                 for k in range(len(pts) - 1):
-                    x1, y1 = pts[k]
-                    x2, y2 = pts[k + 1]
-                    color = (WAVE_COLOR[0], WAVE_COLOR[1], WAVE_COLOR[2], alpha_factor)
-                    draw.line([x1 - glow, y1, x2 - glow, y2], fill=color, width=glow)
+                    ld.line([pts[k], pts[k + 1]], fill=(r, g, b), width=glow_w)
+                img = Image.blend(img, layer, alpha=0.6 if glow_w > 1 else 1.0)
+
+        draw = ImageDraw.Draw(img)
 
         # --- Progress bar ---
-        progress = t / duration
-        bar_y = HEIGHT - 20
-        draw.rectangle([0, bar_y, int(WIDTH * progress), HEIGHT],
-                        fill=(0, 200, 255, 160))
+        progress = t / max(duration, 0.001)
+        draw.rectangle([0, HEIGHT - 8, int(WIDTH * progress), HEIGHT],
+                       fill=(0, 200, 255))
 
-        # --- Subtitle ---
+        # --- Subtitle overlay ---
         subtitle = get_subtitle_at(t)
         if subtitle:
-            wrapped = textwrap.fill(subtitle, width=60)
+            wrapped = textwrap.fill(subtitle, width=58)
             lines = wrapped.split("\n")
-            line_h = 38
-            total_h = len(lines) * line_h + 20
-            sub_y = HEIGHT - 80 - total_h
+            line_h = 42
+            box_h = len(lines) * line_h + 24
+            box_y = HEIGHT - 90 - box_h
 
-            draw.rectangle([60, sub_y - 10, WIDTH - 60, sub_y + total_h],
-                            fill=SUB_BG)
-
-            try:
-                font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 32)
-            except Exception:
-                font = ImageFont.load_default()
+            # Semi-transparent subtitle background via alpha composite
+            overlay = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 0))
+            od = ImageDraw.Draw(overlay)
+            od.rectangle([50, box_y, WIDTH - 50, box_y + box_h],
+                         fill=(SUB_BG_COLOR[0], SUB_BG_COLOR[1], SUB_BG_COLOR[2], 190))
+            img = Image.alpha_composite(img.convert("RGBA"), overlay).convert("RGB")
+            draw = ImageDraw.Draw(img)
 
             for j, line in enumerate(lines):
-                tw = draw.textlength(line, font=font) if hasattr(draw, 'textlength') else 400
-                tx = (WIDTH - tw) // 2
-                ty = sub_y + j * line_h
-                draw.text((tx, ty), line, font=font, fill=TEXT_COLOR)
+                try:
+                    bbox = draw.textbbox((0, 0), line, font=font_sub)
+                    tw = bbox[2] - bbox[0]
+                except Exception:
+                    tw = len(line) * 18
+                tx = max(60, (WIDTH - tw) // 2)
+                ty = box_y + 12 + j * line_h
+                # Shadow
+                draw.text((tx + 2, ty + 2), line, font=font_sub, fill=(0, 0, 0))
+                draw.text((tx, ty), line, font=font_sub, fill=TEXT_COLOR)
 
-        # --- Title ---
+        # --- Title label ---
+        draw.text((20, 14), "\U0001f399  Audio Transcription", font=font_title,
+                  fill=(180, 180, 255))
+
+        # --- Timestamp ---
+        ts = f"{int(t // 60):02}:{int(t % 60):02}"
         try:
-            title_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 22)
+            bbox = draw.textbbox((0, 0), ts, font=font_title)
+            tw = bbox[2] - bbox[0]
         except Exception:
-            title_font = ImageFont.load_default()
-        draw.text((20, 15), "🎙 Audio Transcription", font=title_font, fill=(180, 180, 255))
+            tw = 60
+        draw.text((WIDTH - tw - 20, 14), ts, font=font_title, fill=(150, 150, 200))
 
         return np.array(img)
 
@@ -103,12 +150,16 @@ def create_animated_mp4(mp3_path: str, segments: list) -> str:
     video_clip = video_clip.set_audio(audio_clip)
 
     out_path = mp3_path.replace(".mp3", ".mp4")
+    if out_path == mp3_path:
+        out_path = mp3_path + "_output.mp4"
+
     video_clip.write_videofile(
         out_path,
         fps=FPS,
         codec="libx264",
         audio_codec="aac",
-        logger=None
+        logger=None,
+        threads=4,
     )
 
     audio_clip.close()
