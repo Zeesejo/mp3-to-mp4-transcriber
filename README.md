@@ -4,11 +4,18 @@
 
 Upload any MP3 podcast episode → get an AI transcription → export an animated MP4 with waveform visualization and synced subtitles.
 
-[![YouTube](https://img.shields.io/badge/YouTube-Litends-FF0000?style=flat&logo=youtube)](https://www.youtube.com/@Litends)
-[![Instagram](https://img.shields.io/badge/Instagram-litends-E1306C?style=flat&logo=instagram)](https://www.instagram.com/litends)
-[![Facebook](https://img.shields.io/badge/Facebook-litends-1877F2?style=flat&logo=facebook)](https://www.facebook.com/litends)
-[![Spotify](https://img.shields.io/badge/Spotify-Litens_Talk-1DB954?style=flat&logo=spotify)](https://open.spotify.com/show/litends)
+### 🎙️ Litens
+[![YouTube](https://img.shields.io/badge/YouTube-@Litends-FF0000?style=flat&logo=youtube)](https://youtube.com/@Litends)
+[![Instagram](https://img.shields.io/badge/Instagram-@litendsco-E1306C?style=flat&logo=instagram)](https://instagram.com/litendsco)
+[![Facebook](https://img.shields.io/badge/Facebook-Litends-1877F2?style=flat&logo=facebook)](https://facebook.com/profile.php?id=61576822259468)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-litends-0A66C2?style=flat&logo=linkedin)](https://linkedin.com/company/litends)
+[![Spotify](https://img.shields.io/badge/Spotify-Litens_Talk-1DB954?style=flat&logo=spotify)](https://open.spotify.com/show/7Gm4QCvLZI8qfnBoESAub4)
 [![Website](https://img.shields.io/badge/Website-litends.com-lightgrey?style=flat&logo=google-chrome)](https://litends.com)
+
+### 👤 Zeeshan (Builder)
+[![Instagram](https://img.shields.io/badge/Instagram-@zeesejo-E1306C?style=flat&logo=instagram)](https://instagram.com/zeesejo)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-zeesejo-0A66C2?style=flat&logo=linkedin)](https://linkedin.com/in/zeesejo)
+[![YouTube](https://img.shields.io/badge/YouTube-ZeeseJones-FF0000?style=flat&logo=youtube)](https://youtube.com/c/ZeeseJones)
 
 ---
 
@@ -60,10 +67,11 @@ CORRECTIONS = {
 
 *Litens Talk is a podcast about AI, building things from scratch, and the mindset it takes to actually make it.*
 
-- 🎥 [YouTube @Litends](https://www.youtube.com/@Litends)
-- 📸 [Instagram @litends](https://www.instagram.com/litends)
-- 📘 [Facebook /litends](https://www.facebook.com/litends)
-- 🎵 [Spotify — Litens Talk](https://open.spotify.com/show/litends)
+- ▶️ [YouTube @Litends](https://youtube.com/@Litends)
+- 📸 [Instagram @litendsco](https://instagram.com/litendsco)
+- 📘 [Facebook](https://facebook.com/profile.php?id=61576822259468)
+- 💼 [LinkedIn](https://linkedin.com/company/litends)
+- 🎵 [Spotify — Litens Talk](https://open.spotify.com/show/7Gm4QCvLZI8qfnBoESAub4)
 - 🌐 [litends.com](https://litends.com)
 
 ---

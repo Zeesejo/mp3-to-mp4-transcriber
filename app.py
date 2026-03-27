@@ -6,17 +6,38 @@ import os
 MODEL_CHOICES = ["tiny", "base", "small", "medium", "large"]
 
 SOCIAL_LINKS = """
-<div style="text-align:center; padding: 16px 0 8px 0; font-family: sans-serif;">
-  <p style="font-size:15px; color:#aaa; margin-bottom:10px;">🎙️ <strong>Litens Talk</strong> &mdash; AI · Tech · Mindset · From Scratch</p>
-  <p style="font-size:13px; margin-bottom:6px;">
-    <a href="https://www.youtube.com/@Litends" target="_blank" style="margin:0 8px; color:#FF0000;">▶ YouTube</a>
-    <a href="https://www.instagram.com/litends" target="_blank" style="margin:0 8px; color:#E1306C;">📸 Instagram</a>
-    <a href="https://www.facebook.com/litends" target="_blank" style="margin:0 8px; color:#1877F2;">📘 Facebook</a>
-    <a href="https://open.spotify.com/show/litends" target="_blank" style="margin:0 8px; color:#1DB954;">🎵 Spotify</a>
-    <a href="https://litends.com" target="_blank" style="margin:0 8px; color:#ccc;">🌐 litends.com</a>
+<div style="text-align:center; padding: 20px 0 10px 0; font-family: sans-serif;">
+
+  <p style="font-size:15px; font-weight:bold; color:#ccc; margin-bottom:10px;">🎙️ Litens Talk</p>
+  <p style="font-size:13px; margin-bottom: 6px;">
+    <a href="https://youtube.com/@Litends" target="_blank"
+       style="margin:0 8px; color:#FF0000; text-decoration:none;">▶️ YouTube</a>
+    <a href="https://instagram.com/litendsco" target="_blank"
+       style="margin:0 8px; color:#E1306C; text-decoration:none;">📸 Instagram</a>
+    <a href="https://facebook.com/profile.php?id=61576822259468" target="_blank"
+       style="margin:0 8px; color:#1877F2; text-decoration:none;">📘 Facebook</a>
+    <a href="https://linkedin.com/company/litends" target="_blank"
+       style="margin:0 8px; color:#0A66C2; text-decoration:none;">💼 LinkedIn</a>
+    <a href="https://open.spotify.com/show/7Gm4QCvLZI8qfnBoESAub4" target="_blank"
+       style="margin:0 8px; color:#1DB954; text-decoration:none;">🎵 Spotify</a>
+    <a href="https://litends.com" target="_blank"
+       style="margin:0 8px; color:#aaa; text-decoration:none;">🌐 litends.com</a>
   </p>
-  <p style="font-size:11px; color:#666;">Transcribed using our own open-source model &mdash;
-    <a href="https://github.com/Zeesejo/mp3-to-mp4-transcriber" target="_blank" style="color:#888;">github.com/Zeesejo/mp3-to-mp4-transcriber</a>
+
+  <p style="font-size:12px; color:#666; margin: 12px 0 4px 0;">Built by <strong>Zeeshan</strong></p>
+  <p style="font-size:12px; margin-bottom: 4px;">
+    <a href="https://instagram.com/zeesejo" target="_blank"
+       style="margin:0 6px; color:#E1306C; text-decoration:none;">📸 @zeesejo</a>
+    <a href="https://linkedin.com/in/zeesejo" target="_blank"
+       style="margin:0 6px; color:#0A66C2; text-decoration:none;">💼 LinkedIn</a>
+    <a href="https://youtube.com/c/ZeeseJones" target="_blank"
+       style="margin:0 6px; color:#FF0000; text-decoration:none;">▶️ YouTube</a>
+  </p>
+
+  <p style="font-size:11px; color:#555; margin-top: 10px;">
+    Transcribed with our own open-source tool —
+    <a href="https://github.com/Zeesejo/mp3-to-mp4-transcriber" target="_blank"
+       style="color:#777; text-decoration:none;">github.com/Zeesejo/mp3-to-mp4-transcriber</a>
   </p>
 </div>
 """
