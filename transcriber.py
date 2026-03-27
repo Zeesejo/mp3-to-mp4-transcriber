@@ -1,18 +1,17 @@
 import whisper
 import torch
 import os
+from corrections import correct_segments
 
 def transcribe_audio(mp3_path: str, model_size: str = "base"):
-    """
-    Transcribe an MP3 using OpenAI Whisper.
-    Automatically uses CUDA GPU if available, else CPU.
-    """
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"  Whisper device: {device} ({torch.cuda.get_device_name(0) if device == 'cuda' else 'CPU'})", flush=True)
 
-    model = whisper.load_model(model_size, device=device)
+    model  = whisper.load_model(model_size, device=device)
     result = model.transcribe(mp3_path, verbose=False, fp16=(device == "cuda"))
+
     segments = result["segments"]
+    segments = correct_segments(segments)   # <-- apply custom vocab fixes
 
     srt_path = os.path.splitext(mp3_path)[0] + ".srt"
     _write_srt(segments, srt_path)
