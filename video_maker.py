@@ -3,6 +3,7 @@ from PIL import Image, ImageDraw, ImageFont
 import subprocess
 import os
 import textwrap
+import torch
 
 WIDTH, HEIGHT = 1280, 720
 FPS = 15
@@ -10,24 +11,26 @@ BG_COLOR   = (15, 15, 30)
 WAVE_COLOR = (0, 200, 255)
 TEXT_COLOR = (255, 255, 255)
 SUB_BG     = (30, 30, 60)
+WAVE_RATE  = 2000
 
 
-def _load_audio_array(mp3_path: str, target_rate: int = 2000):
-    """
-    Load MP3 as a mono numpy float32 array resampled to target_rate.
-    Uses ffmpeg directly to decode — no moviepy, no numpy stacking issues.
-    """
+def _get_encoder():
+    """Use NVENC if CUDA available, else libx264 CPU."""
+    if torch.cuda.is_available():
+        print("  Video encoder: h264_nvenc (GPU)", flush=True)
+        return "h264_nvenc", ["-preset", "p2", "-rc", "vbr", "-cq", "23"]
+    print("  Video encoder: libx264 (CPU)", flush=True)
+    return "libx264", ["-preset", "ultrafast", "-crf", "23"]
+
+
+def _load_audio_array(mp3_path: str, target_rate: int = WAVE_RATE):
     cmd = [
-        "ffmpeg", "-y",
-        "-i", mp3_path,
-        "-f", "f32le",          # raw 32-bit float PCM
-        "-acodec", "pcm_f32le",
-        "-ac", "1",             # mono
-        "-ar", str(target_rate),
-        "pipe:1"
+        "ffmpeg", "-y", "-i", mp3_path,
+        "-f", "f32le", "-acodec", "pcm_f32le",
+        "-ac", "1", "-ar", str(target_rate), "pipe:1"
     ]
     result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
-    audio = np.frombuffer(result.stdout, dtype=np.float32).copy()
+    audio  = np.frombuffer(result.stdout, dtype=np.float32).copy()
     mx = np.max(np.abs(audio))
     if mx > 0:
         audio /= mx
@@ -35,7 +38,6 @@ def _load_audio_array(mp3_path: str, target_rate: int = 2000):
 
 
 def _get_audio_duration(mp3_path: str) -> float:
-    """Get duration in seconds using ffprobe."""
     cmd = [
         "ffprobe", "-v", "error",
         "-show_entries", "format=duration",
@@ -73,13 +75,11 @@ def _text_w(draw, text, font):
 
 
 def create_animated_mp4(mp3_path: str, segments: list) -> str:
-    WAVE_RATE = 2000
-
     print("  Loading audio waveform...", flush=True)
-    duration   = _get_audio_duration(mp3_path)
-    audio_arr  = _load_audio_array(mp3_path, target_rate=WAVE_RATE)
+    duration     = _get_audio_duration(mp3_path)
+    audio_arr    = _load_audio_array(mp3_path)
     total_frames = int(duration * FPS)
-    half_win   = WAVE_RATE // 4
+    half_win     = WAVE_RATE // 4
 
     # O(1) subtitle lookup by frame index
     sub_lookup = {}
@@ -93,6 +93,8 @@ def create_animated_mp4(mp3_path: str, segments: list) -> str:
 
     out_path = os.path.splitext(mp3_path)[0] + "_output.mp4"
 
+    encoder, enc_flags = _get_encoder()
+
     cmd = [
         "ffmpeg", "-y",
         "-f", "rawvideo",
@@ -102,9 +104,8 @@ def create_animated_mp4(mp3_path: str, segments: list) -> str:
         "-r", str(FPS),
         "-i", "pipe:0",
         "-i", mp3_path,
-        "-c:v", "libx264",
-        "-preset", "ultrafast",
-        "-crf", "23",
+        "-c:v", encoder,
+        *enc_flags,
         "-c:a", "aac",
         "-shortest",
         "-pix_fmt", "yuv420p",
@@ -120,7 +121,7 @@ def create_animated_mp4(mp3_path: str, segments: list) -> str:
         frame = bg.copy()
         draw  = ImageDraw.Draw(frame)
 
-        # --- Waveform ---
+        # Waveform
         center = int(t * WAVE_RATE)
         s = max(0, center - half_win)
         e = min(len(audio_arr), center + half_win)
@@ -135,15 +136,16 @@ def create_animated_mp4(mp3_path: str, segments: list) -> str:
                 for k in range(len(pts) - 1):
                     draw.line([pts[k], pts[k+1]], fill=rgb, width=glow_w)
 
-        # --- Progress bar ---
+        # Progress bar
         draw.rectangle([0, HEIGHT-8, int(WIDTH * t / duration), HEIGHT], fill=WAVE_COLOR)
 
-        # --- Subtitle ---
+        # Subtitle
         subtitle = sub_lookup.get(frame_idx, "")
         if subtitle:
             wrapped = textwrap.fill(subtitle, width=58)
             lines   = wrapped.split("\n")
-            line_h, box_h = 42, len(wrapped.split("\n")) * 42 + 24
+            line_h  = 42
+            box_h   = len(lines) * line_h + 24
             box_y   = HEIGHT - 95 - box_h
             overlay = Image.new("RGBA", (WIDTH, HEIGHT), (0,0,0,0))
             od = ImageDraw.Draw(overlay)
@@ -157,7 +159,7 @@ def create_animated_mp4(mp3_path: str, segments: list) -> str:
                 draw.text((tx+2, ty+2), line, font=font_sub, fill=(0,0,0))
                 draw.text((tx,   ty),   line, font=font_sub, fill=TEXT_COLOR)
 
-        # --- Title & timestamp ---
+        # Title & timestamp
         draw.text((20, 14), "\U0001f399  Audio Transcription", font=font_title, fill=(180,180,255))
         ts = f"{int(t//60):02}:{int(t%60):02}"
         tw = _text_w(draw, ts, font_title)
