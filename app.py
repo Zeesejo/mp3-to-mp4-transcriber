@@ -32,6 +32,17 @@ waveform visualization and synced subtitles — fully offline, no API key needed
 > *"This very episode was transcribed using our own project."* — Zeeshan, Litens Talk Ep.
 """
 
+css = """
+.gradio-container { max-width: 900px !important; margin: auto; }
+#title-bar { background: linear-gradient(90deg, #0f0f1e, #1a1a3e);
+             border-radius: 12px; padding: 20px 28px; margin-bottom: 16px; }
+#title-bar h1 { color: #00c8ff; margin: 0; font-size: 26px; }
+#title-bar p  { color: #aaa; margin: 4px 0 0 0; font-size: 14px; }
+.run-btn { background: linear-gradient(90deg,#00c8ff,#7b61ff) !important;
+           color: #fff !important; font-weight: bold !important;
+           border-radius: 8px !important; font-size: 15px !important; }
+"""
+
 def process_audio(mp3_file, model_size):
     if mp3_file is None:
         return None, None, "⚠️ Please upload an MP3 file."
@@ -49,18 +60,7 @@ def process_audio(mp3_file, model_size):
     return mp4_path, srt_path, full_text
 
 
-css = """
-.gradio-container { max-width: 900px !important; margin: auto; }
-#title-bar { background: linear-gradient(90deg, #0f0f1e, #1a1a3e); 
-             border-radius: 12px; padding: 20px 28px; margin-bottom: 16px; }
-#title-bar h1 { color: #00c8ff; margin: 0; font-size: 26px; }
-#title-bar p  { color: #aaa; margin: 4px 0 0 0; font-size: 14px; }
-.run-btn { background: linear-gradient(90deg,#00c8ff,#7b61ff) !important;
-           color: #fff !important; font-weight: bold !important;
-           border-radius: 8px !important; font-size: 15px !important; }
-"""
-
-with gr.Blocks(title="Litens Talk — MP3 Transcriber", theme=gr.themes.Soft(), css=css) as demo:
+with gr.Blocks(title="Litens Talk — MP3 Transcriber") as demo:
 
     gr.HTML("""
     <div id="title-bar">
@@ -79,7 +79,7 @@ with gr.Blocks(title="Litens Talk — MP3 Transcriber", theme=gr.themes.Soft(), 
                 info="tiny=fastest · large=most accurate"
             )
 
-    run_btn = gr.Button("▶  Transcribe & Generate Video", variant="primary", elem_classes="run-btn")
+    run_btn = gr.Button("▶  Transcribe & Generate Video", variant="primary")
 
     with gr.Row():
         video_out = gr.Video(label="🎬 Animated MP4")
@@ -89,8 +89,7 @@ with gr.Blocks(title="Litens Talk — MP3 Transcriber", theme=gr.themes.Soft(), 
         label="📝 Full Transcript",
         lines=8,
         placeholder="Your transcript will appear here after processing...",
-        interactive=False,
-        show_copy_button=True
+        interactive=False
     )
 
     with gr.Accordion("ℹ️ About this project", open=False):
@@ -105,4 +104,4 @@ with gr.Blocks(title="Litens Talk — MP3 Transcriber", theme=gr.themes.Soft(), 
     )
 
 if __name__ == "__main__":
-    demo.launch()
+    demo.launch(theme=gr.themes.Soft(), css=css)
